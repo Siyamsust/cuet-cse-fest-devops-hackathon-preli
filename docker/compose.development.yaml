@@ -39,18 +39,11 @@ services:
     ports:
       - "3847:3847"  # Only for development, should not be exposed in production
     depends_on:
-      mongo:
-        condition: service_healthy
+      - mongo
     networks:
       - ecommerce_network
     volumes:
       - ../backend/src:/app/src  # Hot reload for development
-    healthcheck:
-      test: ["CMD", "wget", "-q", "-O-", "http://localhost:3847/api/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 60s
     restart: unless-stopped
 
   # Gateway Service - Public facing service
@@ -66,18 +59,17 @@ services:
     ports:
       - "5921:5921"  # Exposed to public
     depends_on:
-      backend:
-        condition: service_healthy
+      - backend
     networks:
       - ecommerce_network
     volumes:
       - ../gateway/src:/app/src  # Hot reload for development
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O-", "http://localhost:5921/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:5921/health"]
       interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 60s
+      timeout: 10s
+      retries: 10
+      start_period: 120s
     restart: unless-stopped
 
 # Define internal network
