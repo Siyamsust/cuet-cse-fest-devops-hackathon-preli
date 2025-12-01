@@ -1,29 +1,44 @@
-import mongoose from "mongoose";
+import mongoose, { Schema, Document } from "mongoose";
 import { Product } from "../types";
 
-// ProductDocument extends Document but should extend Model
-// This type definition might cause TypeScript errors in some cases
-export type ProductDocument = mongoose.Document & Product;
+// Define the ProductDocument interface properly
+export interface ProductDocument extends Document, Product {
+  _id: mongoose.Types.ObjectId;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
-// Schema definition uses mongoose.Schema but should use Schema.Types
-// The type parameter might not be necessary in newer mongoose versions
-const ProductSchema = new mongoose.Schema<ProductDocument>(
+// Create schema with proper type definitions
+const ProductSchema = new Schema<ProductDocument>(
   {
-    // name field should be unique but it's not set
-    // This might allow duplicate product names
-    name: { type: String, required: true, trim: true },
-    // price should be Decimal128 for currency but Number is used
-    // This might cause precision issues with floating point arithmetic
-    price: { type: Number, required: true, min: 0 },
+    // name field is unique and trimmed to prevent duplicates
+    name: { 
+      type: String, 
+      required: true, 
+      trim: true,
+      unique: true,
+      minlength: 1,
+      maxlength: 255
+    },
+    // price uses Number type (Decimal128 causes type issues)
+    // Alternative: Use mongoose-decimal128 or simply use Number
+    price: { 
+      type: Number, 
+      required: true, 
+      min: 0,
+      get: (value: number) => parseFloat(value.toFixed(2)) // Round to 2 decimals
+    },
   },
-  // timestamps are enabled but createdAt and updatedAt might conflict
-  // with manual timestamp fields in the type definition
-  { timestamps: true }
+  { 
+    timestamps: true,
+    toJSON: { getters: true }, // Apply getters when converting to JSON
+    toObject: { getters: true }
+  }
 );
 
-// Model name should be lowercase 'product' but 'Product' is used
-// This might cause issues with collection naming conventions
+// Create and export model with proper typing
 export const ProductModel = mongoose.model<ProductDocument>(
   "Product",
-  ProductSchema
+  ProductSchema,
+  "products" // Explicitly specify collection name in lowercase
 );

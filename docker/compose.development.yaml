@@ -1,6 +1,91 @@
-# services:
-  # backend:
+version: '3.8'
 
-  # gateway:
+services:
+  # MongoDB - Internal service (not exposed to public)
+  mongo:
+    image: mongo:latest
+    container_name: ecommerce-mongo-dev
+    env_file:
+      - ../.env
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+      MONGO_INITDB_DATABASE: ${MONGO_DATABASE}
+    ports:
+      - "27017:27017"  # For development access only
+    volumes:
+      - mongo_data_dev:/data/db
+      - mongo_config_dev:/data/configdb
+    networks:
+      - ecommerce_network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
 
-  # mongo:
+  # Backend Service - Internal service (not exposed to public)
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile.dev
+    container_name: ecommerce-backend-dev
+    environment:
+      NODE_ENV: development
+      BACKEND_PORT: ${BACKEND_PORT}
+      MONGO_URI: ${MONGO_URI}
+      MONGO_DATABASE: ${MONGO_DATABASE}
+    ports:
+      - "3847:3847"  # Only for development, should not be exposed in production
+    depends_on:
+      mongo:
+        condition: service_healthy
+    networks:
+      - ecommerce_network
+    volumes:
+      - ../backend/src:/app/src  # Hot reload for development
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://localhost:3847/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+
+  # Gateway Service - Public facing service
+  gateway:
+    build:
+      context: ../gateway
+      dockerfile: Dockerfile.dev
+    container_name: ecommerce-gateway-dev
+    environment:
+      NODE_ENV: development
+      GATEWAY_PORT: ${GATEWAY_PORT}
+      BACKEND_URL: http://backend:${BACKEND_PORT}
+    ports:
+      - "5921:5921"  # Exposed to public
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - ecommerce_network
+    volumes:
+      - ../gateway/src:/app/src  # Hot reload for development
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://localhost:5921/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+
+# Define internal network
+networks:
+  ecommerce_network:
+    driver: bridge
+
+# Define volumes for data persistence
+volumes:
+  mongo_data_dev:
+  mongo_config_dev:

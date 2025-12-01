@@ -1,0 +1,25 @@
+# Development Dockerfile for Backend with hot reload
+FROM node:20-alpine
+
+# Set working directory
+WORKDIR /app
+
+# Copy package file
+COPY package.json package-lock.json./
+
+# Install all dependencies including dev dependencies
+RUN npm install
+
+# Copy source code
+COPY src ./src
+COPY tsconfig.json ./
+
+# Expose backend port
+EXPOSE 3847
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:3847/api/health', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"
+
+# Run in development mode with tsx watch
+CMD ["npm", "run", "dev"]

@@ -1,6 +1,99 @@
-# services:
-  # backend:
+version: '3.8'
 
-  # gateway:
+services:
+  # MongoDB - Internal service (not exposed to public)
+  mongo:
+    image: mongo:latest
+    container_name: ecommerce-mongo-prod
+    restart: always
+    env_file:
+      - ../.env
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+      MONGO_INITDB_DATABASE: ${MONGO_DATABASE}
+    volumes:
+      - mongo_data_prod:/data/db
+      - mongo_config_prod:/data/configdb
+    networks:
+      - ecommerce_network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
-  # mongo:
+  # Backend Service - Internal service (not exposed to public)
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: ecommerce-backend-prod
+    restart: always
+    environment:
+      NODE_ENV: production
+      BACKEND_PORT: ${BACKEND_PORT}
+      MONGO_URI: ${MONGO_URI}
+      MONGO_DATABASE: ${MONGO_DATABASE}
+    depends_on:
+      mongo:
+        condition: service_healthy
+    networks:
+      - ecommerce_network
+    healthcheck:
+      test: node -e "require('http').get('http://localhost:3847/api/health', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Gateway Service - Public facing service
+  gateway:
+    build:
+      context: ../gateway
+      dockerfile: Dockerfile
+    container_name: ecommerce-gateway-prod
+    restart: always
+    environment:
+      NODE_ENV: production
+      GATEWAY_PORT: ${GATEWAY_PORT}
+      BACKEND_URL: http://backend:${BACKEND_PORT}
+    ports:
+      - "5921:5921"  # Exposed to public
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - ecommerce_network
+    healthcheck:
+      test: node -e "require('http').get('http://localhost:5921/health', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# Define internal network
+networks:
+  ecommerce_network:
+    driver: bridge
+
+# Define volumes for data persistence
+volumes:
+  mongo_data_prod:
+  mongo_config_prod:

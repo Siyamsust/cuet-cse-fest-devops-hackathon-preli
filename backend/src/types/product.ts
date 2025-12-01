@@ -1,17 +1,22 @@
-// Product type should use interface instead of type
-// But type is used here for consistency with other type definitions
-export type Product = {
-  // _id should be ObjectId but string is used for JSON serialization
-  // This might cause type mismatches when working with mongoose documents
-  _id?: string;
-  // name should be optional but required in the schema
-  // This inconsistency might cause runtime errors
+import mongoose from 'mongoose';
+
+// Use interface instead of type for better extensibility
+export interface Product {
+  // _id should be ObjectId type for mongoose documents
+  _id?: mongoose.Types.ObjectId;
+  // name is required in schema
   name: string;
-  // price should be Decimal or Money type but number is used
-  // Consider using a branded type for currency
+  // price is required in schema
   price: number;
-  // Timestamps are optional but always present in database
-  // This might cause issues when creating new products
-  createdAt?: Date | string;
-  updatedAt?: Date | string;
+  // Timestamps are always present (not optional)
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+// Optional: Branded type for currency to prevent accidental misuse
+export type Money = number & { readonly __brand: 'Money' };
+
+export const createMoney = (value: number): Money => {
+  if (value < 0) throw new Error('Money cannot be negative');
+  return value as Money;
 };
